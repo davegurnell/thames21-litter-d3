@@ -29,22 +29,29 @@ $("#root").text(JSON.stringify(surveys, null, 2));
 
 var canvas = d3.select("#canvas").
   append("svg:svg").
-  attr("width", 400).
-  attr("height", 300);
+  attr("width", 500).
+  attr("height", 800);
+
+var SPACING = 20;
+var litterItem = "sewageMixedWetWipesOrBabyWipes";
 
 canvas
   .selectAll("g")
-  .data(function() {
-    console.log('AAAA', surveys);
-    return surveys;
-  })
-  .selectAll("circle")
-  .data(function(survey, i) {
-    console.log('BBBB', survey, i);
-    return survey.quadrats;
-  })
-  .enter()
-    .append("circle")
-    .attr("cx", function(d, i, j) { return 50 + 50 * i; })
-    .attr("cy", function(d, i, j) { return 50 + 50 * j; })
-    .attr("r", 2.5);
+    .data(surveys)
+    .enter()
+      .append("g")
+      .attr("transform", function(d, i) {
+        return "translate(" + (SPACING + SPACING * i) + ")";
+      })
+      .selectAll("circle")
+        .data(function(survey) { return survey.quadrats; })
+        .enter()
+          .append("circle")
+          .attr("cx", function(quadrat, j) { return 0; })
+          .attr("cy", function(quadrat, j) { return SPACING + SPACING * j; })
+          .attr("r",  function(quadrat) {
+            return quadrat.collected
+              .filter(function(coll) { return coll.item === litterItem })
+              .map(function(coll) { return Math.log(coll.quantity); })
+              .reduce(function(a, b) { return a + b; }, 0);
+          });
