@@ -1,10 +1,10 @@
 
-function lng(result) {
-  return result.location._wgs84[0];
+function lng(location) {
+  return location._wgs84[0];
 }
 
-function lat(result) {
-  return result.location._wgs84[1];
+function lat(location) {
+  return location._wgs84[1];
 }
 
 var lngMin = -0.236270;
@@ -27,15 +27,22 @@ function clean(data) {
   return data
     .results
     .filter(function(result) {
-      return result.location != null
-        && lng(result) >= lngMin
-        && lng(result) <= lngMax
-        && lat(result) >= latMin
-        && lat(result) <= latMax;
+      return result.location != null;
+        // && lng(result.location) >= lngMin
+        // && lng(result.location) <= lngMax
+        // && lat(result.location) >= latMin
+        // && lat(result.location) <= latMax;
     })
     .sort(function(a, b) {
-      return lng(b) - lng(a);
+      return lng(b.location) - lng(a.location);
     });
+}
+
+function projectPoint(map) {
+  return function(x, y) {
+    var point = map.latLngToLayerPoint(new L.LatLng(y, x));
+    this.stream.point(point.x, point.y);
+  };
 }
 
 function display(canvas, data) {
@@ -46,23 +53,64 @@ function display(canvas, data) {
       .data(data)
       .enter()
         .append("g")
-        .attr("transform", function(d, i) {
-          return "translate(" + (spacing + spacing * i) + ")";
-        })
-        .selectAll("circle")
-          .data(function(survey) { return survey.quadrats; })
+        .selectAll("path")
+          .data(function(survey) {
+            return survey.quadrats.map(function(quadrat) {
+              return {
+                quadrat: quadrat,
+                location: survey.location
+              };
+            })
+          })
           .enter()
-            .append("circle")
-            .attr("cx", function(quadrat, j) { return 0; })
-            .attr("cy", function(quadrat, j) { return spacing + spacing * j; })
-            .attr("r",  function(quadrat) {
-              return quantity(quadrat, litterItem);
+            .append("path")
+            .attr("transform", function(quadratAndLocation, j) {
+              return "translate(0, " + (5 * j) + ")";
+            })
+            .style("fill", function(quadratAndLocation, j) {
+              return "hsl(" + 10*j + ", 100%, 50%)";
+            })
+            .attr("d", function(quadratAndLocation, j) {
+              var quadrat  = quadratAndLocation.quadrat;
+              var location = quadratAndLocation.location;
+
+              return path({
+                type: "Point",
+                coordinates: [
+                  lng(location),
+                  lat(location)
+                ]
+              }, quantity(quadrat, litterItem));
             });
 }
 
-var canvas = d3.select("#canvas")
+var map = L.map('map')
+  .setView([
+    51.488822902622644,
+    -0.22859930992126462
+  ], 15)
+  .addLayer(L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }));
+
+var svg = d3.select(map.getPanes().overlayPane)
   .append("svg:svg")
   .attr("width", 500)
   .attr("height", 800);
+
+var canvas = svg.append("g")
+  .attr("class", "leaflet-zoom-hide")
+  ;
+
+var transform = d3
+  .geoTransform({point: projectPoint(map) });
+
+var path = d3.geoPath()
+  // geometry and value are the same arguments
+  // passed to path() below
+  .pointRadius(function(geometry, value) {
+    return 5 * Math.log(value);
+  })
+  .projection(transform);
 
 display(canvas, clean(rawData));
